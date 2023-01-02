@@ -1,0 +1,4 @@
+# Custom token filters are listed here, and are available by lowercase class name minus the -filterfactory suffix.
+ca.dougsparling.luceneblogpost.filter.DebugTokenFilterFactory
+ca.dougsparling.luceneblogpost.filter.QuotationTokenFilterFactory
+ca.dougsparling.luceneblogpost.filter.DialoguePayloadTokenFilterFactory
