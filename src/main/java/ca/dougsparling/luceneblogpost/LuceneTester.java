@@ -24,7 +24,7 @@ public class LuceneTester {
         try {
             tester = new LuceneTester();
             tester.createIndex();
-            tester.search("cup");
+            tester.search();
         } catch (IOException e) {
             e.printStackTrace();
         } catch (ParseException e) {
@@ -51,7 +51,7 @@ public class LuceneTester {
         }
     }
 
-    private void search(String searchQuery) throws IOException, ParseException {
+    private void search() throws IOException, ParseException {
         searcher = new Searcher(indexDir);
         loop();
     }
