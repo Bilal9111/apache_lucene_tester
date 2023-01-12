@@ -5,27 +5,22 @@ import static java.util.Collections.singleton;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.payloads.AveragePayloadFunction;
 import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.queryparser.xml.builders.BooleanQueryBuilder;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.PositiveScoresOnlyCollector;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.payloads.AveragePayloadFunction;
-import org.apache.lucene.search.payloads.PayloadTermQuery;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.store.FSDirectory;
 
-import ca.dougsparling.luceneblogpost.search.DialogueAwareSimilarity;
 
 public class LuceneQueryApp {
 
@@ -39,7 +34,7 @@ public class LuceneQueryApp {
 
 		reader = DirectoryReader.open(FSDirectory.open(indexPath));
 		this.searcher = new IndexSearcher(reader);
-		this.searcher.setSimilarity(new DialogueAwareSimilarity());
+		this.searcher.setSimilarity(new ClassicSimilarity());
 	}
 	
 	private void loop() throws IOException, ParseException {
@@ -71,19 +66,21 @@ public class LuceneQueryApp {
 	}
 
 	private TopDocs findTopDocs(Query query, int topN) throws IOException {
-		TopScoreDocCollector collector = TopScoreDocCollector.create(topN);
+		TopScoreDocCollector collector = TopScoreDocCollector.create(topN, topN);
 		searcher.search(query, new PositiveScoresOnlyCollector(collector));
 		return collector.topDocs();
 	}
 
-	private Query buildQuery(String queryText) throws IOException, ParseException {	
-		BooleanQuery allTermsInDialogue = new BooleanQuery();
+	private Query buildQuery(String queryText) throws IOException, ParseException {
+		BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
 		String[] terms = queryText.split("\\W+");
 		for (String term : terms) {
-			PayloadTermQuery termInDialogueSubquery = new PayloadTermQuery(new Term("body", term), new AveragePayloadFunction());
-			allTermsInDialogue.add(termInDialogueSubquery, Occur.SHOULD);
+			TermQuery termInDialogueSubquery = new TermQuery(new Term("body", term));
+			BooleanClause booleanClause = new BooleanClause(termInDialogueSubquery, Occur.SHOULD);
+			booleanQueryBuilder.add(booleanClause);
 		}
-		return allTermsInDialogue;
+
+		return booleanQueryBuilder.build();
 	}
 	
 	private void printQueryResults(Query query, TopDocs results) throws IOException {

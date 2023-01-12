@@ -3,6 +3,7 @@ package ca.dougsparling.luceneblogpost;
 import java.io.IOException;
 import java.nio.file.Paths;
 
+import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.CorruptIndexException;
@@ -29,14 +30,13 @@ public class Searcher {
                 FSDirectory.open(Paths.get(indexDirectoryPath));
         IndexReader reader = DirectoryReader.open(indexDirectory);
         indexSearcher = new IndexSearcher(reader);
-        queryParser = new QueryParser("body",
-                new StandardAnalyzer());
+        queryParser = new QueryParser("body", new JapaneseAnalyzer());
     }
 
-    public TopDocs search( String searchQuery)
+    public TopDocs search( Query searchQuery)
             throws IOException, ParseException {
-        query = queryParser.parse(searchQuery);
-        return indexSearcher.search(query, 2);
+        //query = queryParser.parse(searchQuery);
+        return indexSearcher.search(searchQuery, 5);
     }
 
     public Document getDocument(ScoreDoc scoreDoc)

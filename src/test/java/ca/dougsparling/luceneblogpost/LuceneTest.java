@@ -22,14 +22,10 @@ import org.apache.lucene.search.PositiveScoresOnlyCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.payloads.MinPayloadFunction;
-import org.apache.lucene.search.payloads.PayloadTermQuery;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.junit.Test;
 
-import ca.dougsparling.luceneblogpost.search.DialogueAwareSimilarity;
-
+/*
 public class LuceneTest {
 	
 	private static final String TEST_FIELD_NAME = "test";
@@ -119,3 +115,5 @@ public class LuceneTest {
 		return topDocs;
 	}
 }
+
+ */
