@@ -26,7 +26,7 @@ public class Indexer {
 
         Analyzer analyzer = null;
         if (locale == "jp") analyzer = new JapaneseAnalyzer();
-        if (locale == "ar") analyzer = new ArabicAnalyzer();
+        else if (locale == "ar") analyzer = new ArabicAnalyzer();
         else analyzer = new DialogueAnalyzer();
 
         IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
@@ -44,9 +44,9 @@ public class Indexer {
         TextField contentField = new TextField("body", new FileReader(file));
 
         TextField fileNameField = new TextField("title", file.getName(),TextField.Store.YES);
-        TextField filePathField = new TextField("path", file.getCanonicalPath(),TextField.Store.YES);
 
         TextField topicPathField = new TextField("topic", topic,TextField.Store.YES);
+
         TextField localePathField = new TextField("locale", locale,TextField.Store.YES);
 
         try(BufferedReader br = new BufferedReader(new FileReader(file))) {
@@ -66,7 +66,6 @@ public class Indexer {
 
         document.add(contentField);
         document.add(fileNameField);
-        document.add(filePathField);
         document.add(topicPathField);
         document.add(localePathField);
 

@@ -3,14 +3,23 @@ package ca.dougsparling.luceneblogpost;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
+import java.util.logging.Filter;
 
+import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.queryparser.complexPhrase.ComplexPhraseQueryParser;
 import org.apache.lucene.search.*;
 
 public class LuceneTester {
@@ -20,7 +29,7 @@ public class LuceneTester {
     Indexer indexer;
     Searcher searcher;
     String topic = "oya"; // simulation of tenantUids/ operationUids
-    String locale = "ar"; // jp, en, ar
+    String locale = "ar"; // ja, en, ar
     private Scanner stdin = new Scanner(System.in);
 
     public static void main(String[] args) {
@@ -61,62 +70,113 @@ public class LuceneTester {
         loop();
     }
 
-    private Query buildQueryLatin(String queryText, String topic, String locale) throws IOException, ParseException {
-        BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
 
-        String[] terms = queryText.split("\\W+");
-        for (String word : terms) {
-            Term term = new Term("body", word);
-            FuzzyQuery termQuery = new FuzzyQuery(term, 2);
-            BooleanClause booleanClause = new BooleanClause(termQuery, BooleanClause.Occur.SHOULD);
-            booleanQueryBuilder.add(booleanClause);
-        }
+    // Does not work very well. The parser method is better.
+    private Query buildQueryLatin_FuzzySearchMethod(String queryText, String topic, String locale) throws IOException, ParseException {
+        // Filter
+        BooleanQuery.Builder filterQueryBuilder = new BooleanQuery.Builder();
+
         TermQuery topicQuery = new TermQuery(new Term("topic", topic));
-        BooleanClause booleanClause = new BooleanClause(topicQuery, BooleanClause.Occur.SHOULD);
-        booleanQueryBuilder.add(booleanClause);
+        BooleanClause booleanClauseTopic = new BooleanClause(topicQuery, BooleanClause.Occur.FILTER);
+        filterQueryBuilder.add(booleanClauseTopic);
 
         TermQuery localeQuery = new TermQuery(new Term("locale", locale));
-        BooleanClause booleanClauseLocale = new BooleanClause(localeQuery, BooleanClause.Occur.MUST);
-        booleanQueryBuilder.add(booleanClauseLocale);
-        return booleanQueryBuilder.build();
+        BooleanClause booleanClauseLocale = new BooleanClause(localeQuery, BooleanClause.Occur.FILTER);
+        filterQueryBuilder.add(booleanClauseLocale);
+
+        // Parse
+        String[] terms = queryText.split(" ");
+        SpanQuery[] spanQueries = new SpanQuery[terms.length];
+        int count = 0;
+        for (String word : terms) {
+            FuzzyQuery fuzzyQuery = new FuzzyQuery(new Term("body", word), 2);
+            spanQueries[count] = new SpanMultiTermQueryWrapper<>(fuzzyQuery); count += 1;
+        }
+
+        SpanNearQuery spanFuzzyQuery = new SpanNearQuery(spanQueries, 0, true);
+
+        filterQueryBuilder.add(new BooleanClause(spanFuzzyQuery, BooleanClause.Occur.SHOULD));
+
+
+        return filterQueryBuilder.build();
     }
 
-    private Query buildQueryArabic(String queryText, String topic, String locale) throws IOException, ParseException {
-        BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
+    private Query buildQueryLatin_ParserMethod(String queryText, String topic, String locale) throws IOException, ParseException {
+        // Filter
+        BooleanQuery.Builder filterQueryBuilder = new BooleanQuery.Builder();
 
-        String[] terms = queryText.split(" ");
-        for (String word : terms) {
-            Term term = new Term("body", word);
-            FuzzyQuery termQuery = new FuzzyQuery(term, 2);
-            BooleanClause booleanClause = new BooleanClause(termQuery, BooleanClause.Occur.SHOULD);
-            booleanQueryBuilder.add(booleanClause);
-        }
         TermQuery topicQuery = new TermQuery(new Term("topic", topic));
-        BooleanClause booleanClause = new BooleanClause(topicQuery, BooleanClause.Occur.SHOULD);
-        booleanQueryBuilder.add(booleanClause);
+        BooleanClause booleanClauseTopic = new BooleanClause(topicQuery, BooleanClause.Occur.FILTER);
+        filterQueryBuilder.add(booleanClauseTopic);
 
         TermQuery localeQuery = new TermQuery(new Term("locale", locale));
-        BooleanClause booleanClauseLocale = new BooleanClause(localeQuery, BooleanClause.Occur.MUST);
-        booleanQueryBuilder.add(booleanClauseLocale);
-        return booleanQueryBuilder.build();
+        BooleanClause booleanClauseLocale = new BooleanClause(localeQuery, BooleanClause.Occur.FILTER);
+        filterQueryBuilder.add(booleanClauseLocale);
+
+        // Parse
+        MultiFieldQueryParser parser = new MultiFieldQueryParser(new String[]{"body"}, new DialogueAnalyzer());
+        //ComplexPhraseQueryParser parser = new ComplexPhraseQueryParser("body", new DialogueAnalyzer()); // This works well with fuzzy ~ as well
+        parser.setDefaultOperator(QueryParser.Operator.OR);
+        Query parseQuery = parser.parse(queryText);
+
+
+
+        BooleanClause parseBooleanClause = new BooleanClause(parseQuery, BooleanClause.Occur.SHOULD);
+        filterQueryBuilder.add(parseBooleanClause);
+
+
+        return filterQueryBuilder.build();
+    }
+
+
+
+    private Query buildQueryArabic(String queryText, String topic, String locale) throws IOException, ParseException {
+        // Filter
+        BooleanQuery.Builder filterQueryBuilder = new BooleanQuery.Builder();
+
+        TermQuery topicQuery = new TermQuery(new Term("topic", topic));
+        BooleanClause booleanClauseTopic = new BooleanClause(topicQuery, BooleanClause.Occur.FILTER);
+        filterQueryBuilder.add(booleanClauseTopic);
+
+        TermQuery localeQuery = new TermQuery(new Term("locale", locale));
+        BooleanClause booleanClauseLocale = new BooleanClause(localeQuery, BooleanClause.Occur.FILTER);
+        filterQueryBuilder.add(booleanClauseLocale);
+
+        // Parse
+        MultiFieldQueryParser parser = new MultiFieldQueryParser(new String[]{"body"}, new ArabicAnalyzer());
+        parser.setDefaultOperator(QueryParser.Operator.OR);
+        Query parseQuery = parser.parse(queryText);
+
+        BooleanClause parseBooleanClause = new BooleanClause(parseQuery, BooleanClause.Occur.SHOULD);
+        filterQueryBuilder.add(parseBooleanClause);
+
+        return filterQueryBuilder.build();
+
     }
 
     private Query buildQueryJap(String queryText, String topic, String locale) throws IOException, ParseException {
-        BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
 
-        Term term = new Term("body", queryText);
-        FuzzyQuery termQuery = new FuzzyQuery(term, 2);
-        BooleanClause booleanClause = new BooleanClause(termQuery, BooleanClause.Occur.SHOULD);
-        booleanQueryBuilder.add(booleanClause);
+        // Filter
+        BooleanQuery.Builder filterQueryBuilder = new BooleanQuery.Builder();
 
         TermQuery topicQuery = new TermQuery(new Term("topic", topic));
-        BooleanClause booleanClauseTopic = new BooleanClause(topicQuery, BooleanClause.Occur.MUST);
-        booleanQueryBuilder.add(booleanClauseTopic);
+        BooleanClause booleanClauseTopic = new BooleanClause(topicQuery, BooleanClause.Occur.FILTER);
+        filterQueryBuilder.add(booleanClauseTopic);
 
         TermQuery localeQuery = new TermQuery(new Term("locale", locale));
-        BooleanClause booleanClauseLocale = new BooleanClause(localeQuery, BooleanClause.Occur.MUST);
-        booleanQueryBuilder.add(booleanClauseLocale);
-        return booleanQueryBuilder.build();
+        BooleanClause booleanClauseLocale = new BooleanClause(localeQuery, BooleanClause.Occur.FILTER);
+        filterQueryBuilder.add(booleanClauseLocale);
+
+        // Parse
+        MultiFieldQueryParser parser = new MultiFieldQueryParser(new String[]{"body"}, new JapaneseAnalyzer());
+        parser.setDefaultOperator(QueryParser.Operator.OR);
+
+        Query parseQuery = parser.parse(queryText);
+        BooleanClause parseBooleanClause = new BooleanClause(parseQuery, BooleanClause.Occur.SHOULD);
+        filterQueryBuilder.add(parseBooleanClause);
+
+
+        return filterQueryBuilder.build();
     }
 
     private void loop() throws IOException, ParseException {
@@ -127,8 +187,8 @@ public class LuceneTester {
 
             Query query = null;
             if (locale == "jp") query = buildQueryJap(queryText, topic, locale);
-            if (locale == "ar") query = buildQueryArabic(queryText, topic, locale);
-            else query = buildQueryLatin(queryText, topic, locale);
+            else if (locale == "ar") query = buildQueryArabic(queryText, topic, locale);
+            else query = buildQueryLatin_ParserMethod(queryText, topic, locale);
 
             TopDocs hits = searcher.search(query);
             long endTime = System.currentTimeMillis();
@@ -139,7 +199,7 @@ public class LuceneTester {
                 Document doc = searcher.getDocument(scoreDoc);
                 System.out.println("--------------");
                 System.out.println("File: "
-                        + doc.get("title") + "\n" + doc.get("bodystore").strip());
+                        + doc.get("title") + scoreDoc.score +  "\n" + doc.get("bodystore").strip());
             }
 
             queryText = askForNextQuery();
